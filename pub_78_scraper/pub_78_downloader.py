@@ -157,8 +157,3 @@ class Pub78Downloader:
             # Cleanup will happen regardless of success or failure
             if zip_path or unzipped_file:
                 self.cleanup(zip_path, unzipped_file)
-
-if __name__ == "__main__":
-    downloader = Pub78Downloader()
-    df = downloader.process()
-    print(df.head())
