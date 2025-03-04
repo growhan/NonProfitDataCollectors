@@ -4,18 +4,27 @@ import zipfile
 import pandas as pd
 from pathlib import Path
 import logging
+from dotenv import load_dotenv
+
+# Get the parent directory path
+PARENT_DIR = Path(__file__).parent.parent
+
+# Load environment variables from parent directory
+load_dotenv(PARENT_DIR / '.env')
 
 class Pub78Downloader:
-    PUB_78_DOWNLOAD_URL = 'https://apps.irs.gov/pub/epostcard/data-download-pub78.zip'
+    PUB_78_DOWNLOAD_URL = os.getenv('IRS_PUB78_URL', 'https://apps.irs.gov/pub/epostcard/data-download-pub78.zip')
 
     def __init__(self):
         """
         Initialize the Pub78Downloader.
         """
-        self.current_dir = Path("./")
+        self.current_dir = Path(os.getenv('OUTPUT_DIR', './'))
+        self.current_dir.mkdir(parents=True, exist_ok=True)
         
         # Setup logging
-        logging.basicConfig(level=logging.INFO)
+        log_level = os.getenv('LOG_LEVEL', 'INFO')
+        logging.basicConfig(level=getattr(logging, log_level))
         self.logger = logging.getLogger(__name__)
 
     def download_file(self):
@@ -149,6 +158,7 @@ class Pub78Downloader:
             df = self.process_to_dataframe(unzipped_file)
             
             self.logger.info("Process completed successfully")
+            print(df.head())
             return df
         except Exception as e:
             self.logger.error(f"Error in processing: {str(e)}")
