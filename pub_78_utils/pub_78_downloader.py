@@ -158,6 +158,7 @@ class Pub78Downloader:
             df = self.process_to_dataframe(unzipped_file)
             
             self.logger.info("Process completed successfully")
+            print(df.head())
             return df
         except Exception as e:
             self.logger.error(f"Error in processing: {str(e)}")
