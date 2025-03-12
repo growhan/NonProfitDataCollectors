@@ -2,6 +2,7 @@ class DataClass:
     PUB_78 = 'PUB_78'
     POSTCARD_990 = 'POSTCARD_990'
     FORM_990_MASTER = 'FORM_990_MASTER'
+    SERIES_990 = 'SERIES_990'
 
     @classmethod
     def is_valid(cls, value: str) -> bool:
@@ -10,7 +11,7 @@ class DataClass:
     @classmethod
     def get_all_values(cls) -> set[str]:
         # Return a set of all class-level string constants
-        return {cls.PUB_78, cls.POSTCARD_990, cls.FORM_990_MASTER}
+        return {cls.PUB_78, cls.POSTCARD_990, cls.FORM_990_MASTER, cls.SERIES_990}
     
     @classmethod
     def validate_or_raise(cls, value: str) -> 'DataClass':

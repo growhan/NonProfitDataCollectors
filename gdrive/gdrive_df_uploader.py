@@ -4,13 +4,14 @@ from dotenv import load_dotenv
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-from googleapiclient.http import MediaIoBaseUpload
+from googleapiclient.http import MediaIoBaseUpload, MediaFileUpload
 import pandas as pd
 import io
 import sys
 from datetime import datetime
 import zipfile
 import tempfile
+from typing import Union
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -170,6 +171,50 @@ class GoogleDriveUploader:
             if 'zip_buffer' in locals():
                 zip_buffer.close()
 
+    def upload_local_file(self, file_path: str, folder_id=None):
+        """Upload a local file to Google Drive."""
+        try:
+            if not self.service:
+                print("Failed to get Drive service")
+                return None
+            
+            if not os.path.exists(file_path):
+                print(f"Error: File '{file_path}' does not exist")
+                return None
+            
+            file_name = os.path.basename(file_path)
+            file_metadata = {
+                'name': file_name
+            }
+            
+            if folder_id:
+                file_metadata['parents'] = [folder_id]
+            
+            media = MediaFileUpload(
+                file_path,
+                resumable=True
+            )
+            
+            file_size = os.path.getsize(file_path) / 1024  # Size in KB
+            print(f"\nFile size: {file_size:.2f} KB")
+            
+            file = self.service.files().create(
+                body=file_metadata,
+                media_body=media,
+                fields='id, name, webViewLink'
+            ).execute()
+            
+            print(f"\nFile uploaded successfully: {file.get('name')}")
+            print(f"File ID: {file.get('id')}")
+            print(f"File link: {file.get('webViewLink')}")
+            
+            self.share_file(file.get('id'))
+            
+            return file
+        except HttpError as error:
+            print(f"An error occurred: {error}")
+            return None
+
     @staticmethod
     def get_upload_folder_id(data_class: str) -> str:
         """Get the appropriate folder ID based on the data class."""
@@ -214,8 +259,14 @@ class GoogleDriveUploader:
             print(f"An error occurred while listing folders: {error}")
             return None
 
-    def upload(self, df: pd.DataFrame, data_class: str = None):
-        """Upload a pandas DataFrame to Google Drive based on the specified data class."""
+    def upload(self, data: Union[pd.DataFrame, str], data_class: str = None):
+        """
+        Upload either a pandas DataFrame or a local file to Google Drive based on the specified data class.
+        
+        Args:
+            data: Either a pandas DataFrame or a string path to a local file
+            data_class: The data class category for the upload
+        """
         try:
             if not data_class:
                 print("Error: data_class parameter is required")
@@ -248,16 +299,22 @@ class GoogleDriveUploader:
                     print(f"Link: {info['link']}")
                     break
             
-            current_datetime = datetime.now().strftime('%Y-%m-%d_%H%M%S')
-            filename = f'{data_class.lower()}_{current_datetime}_data.csv'
-            
-            print(f"\nUploading file '{filename}' to the target folder...")
-            
-            return self.upload_dataframe(
-                df=df,
-                filename=filename,
-                folder_id=folder_id
-            )
+            if isinstance(data, pd.DataFrame):
+                current_datetime = datetime.now().strftime('%Y-%m-%d_%H%M%S')
+                filename = f'{data_class.lower()}_{current_datetime}_data.csv'
+                return self.upload_dataframe(
+                    df=data,
+                    filename=filename,
+                    folder_id=folder_id
+                )
+            elif isinstance(data, str):
+                return self.upload_local_file(
+                    file_path=data,
+                    folder_id=folder_id
+                )
+            else:
+                print("Error: data must be either a pandas DataFrame or a string path to a local file")
+                return None
             
         except HttpError as error:
             print(f"An error occurred: {error}")
@@ -265,6 +322,7 @@ class GoogleDriveUploader:
 
 if __name__ == "__main__":
     # Example usage with PUB_78 data class
+    # Example with DataFrame
     example_df = pd.DataFrame({
         'name': ['John', 'Jane', 'Bob'],
         'age': [30, 25, 35],
@@ -272,4 +330,8 @@ if __name__ == "__main__":
     })
     
     uploader = GoogleDriveUploader()
-    uploader.upload(df=example_df, data_class=DataClass.PUB_78)
+    # Upload DataFrame
+    uploader.upload(data=example_df, data_class=DataClass.PUB_78)
+    
+    # Example with local file
+    # uploader.upload(data="path/to/your/local/file.csv", data_class=DataClass.PUB_78)
