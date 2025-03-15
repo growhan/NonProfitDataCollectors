@@ -49,5 +49,4 @@ ENV/
 # Local data
 data/
 *.zip
-*.txt
 .DS_Store

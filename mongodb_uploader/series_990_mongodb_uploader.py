@@ -40,8 +40,8 @@ def build_json_structure(row):
 
 class Series990MongoDBUploader:
     def __init__(self):
-        # Load environment variables
-        load_dotenv()
+        # Reload the .env file and override any existing environment variables
+        load_dotenv(override=True)
         
         # Get MongoDB credentials
         self.mongo_host = os.getenv('MONGODB_HOST')
@@ -49,6 +49,7 @@ class Series990MongoDBUploader:
         self.mongo_user = os.getenv('MONGODB_USER')
         self.mongo_pass = os.getenv('MONGODB_PASSWORD')
         self.mongo_db = os.getenv('MONGODB_DATABASE')
+        self.series990_collection = os.getenv('MONGODB_SERIES_990_COLLECTION', 'series_990')
         
         # Validate MongoDB configuration
         if not all([self.mongo_host, self.mongo_port, self.mongo_user, self.mongo_pass, self.mongo_db]):
@@ -57,30 +58,39 @@ class Series990MongoDBUploader:
         # Initialize MongoDB connection
         try:
             # Try connecting with credentials
-            self.mongo_uri = f"mongodb://{self.mongo_user}:{self.mongo_pass}@{self.mongo_host}:{self.mongo_port}"
+            self.mongo_uri = f"mongodb://{self.mongo_user}:{self.mongo_pass}@{self.mongo_host}:{self.mongo_port}/{self.mongo_db}?authSource={self.mongo_db}"
             self.client = MongoClient(self.mongo_uri)
             
             # Test the connection
             self.client.admin.command('ping')
             logger.info("Successfully connected to MongoDB with authentication")
             
+            # Check if the connected user has readWrite permissions
+            user_info = self.client[self.mongo_db].command("usersInfo", {"user": self.mongo_user, "db": self.mongo_db})
+            if user_info.get("users"):
+                roles = user_info["users"][0].get("roles", [])
+                if not any(role.get("role") == "readWrite" for role in roles):
+                    raise Exception(f"The user {self.mongo_user} does not have readWrite permissions on database {self.mongo_db}")
+            else:
+                raise Exception("Unable to retrieve user information to verify readWrite permissions")
+            
             # Set the database and collection
             self.db = self.client[self.mongo_db]
-            self.collection = self.db['series_990']
+            self.collection = self.db[self.series990_collection]
             
         except (ConnectionFailure, OperationFailure) as e:
             logger.error(f"MongoDB Authentication failed: {str(e)}")
             logger.info("Attempting to connect without authentication...")
             try:
                 # Try connecting without credentials
-                self.mongo_uri = f"mongodb://{self.mongo_host}:{self.mongo_port}"
+                self.mongo_uri = f"mongodb://{self.mongo_host}:{self.mongo_port}/{self.mongo_db}"
                 self.client = MongoClient(self.mongo_uri)
                 self.client.admin.command('ping')
                 logger.info("Successfully connected to MongoDB without authentication")
                 
                 # Set the database and collection
                 self.db = self.client[self.mongo_db]
-                self.collection = self.db['series_990']
+                self.collection = self.db[self.series990_collection]
                 
             except Exception as e2:
                 logger.error(f"All MongoDB connection attempts failed: {str(e2)}")
@@ -220,7 +230,7 @@ class Series990MongoDBUploader:
         """Download, unzip, and process a single file."""
         file_id = file_info['id']
         file_name = file_info['name']
-        year = int(file_name.split('_')[1])
+        year = int(file_name.split('_')[2])
         
         zip_path = os.path.join(self.downloads_dir, file_name)
         year_dir = os.path.join(self.extracted_dir, str(year))
@@ -365,7 +375,7 @@ if __name__ == "__main__":
     # uploader.process_all_files()
     
     # Process specific year range:
-    uploader.process_all_files(start_year=2022, end_year=2025)
+    uploader.process_all_files(start_year=2025, end_year=2025)
     
     # Process from specific year to latest:
     # uploader.process_all_files(start_year=2020)
